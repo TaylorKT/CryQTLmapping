@@ -1,0 +1,215 @@
+
+```{r}
+#if (!require("BiocManager", quietly = TRUE))
+ # install.packages("BiocManager")
+
+#BiocManager::install("apeglm")
+#BiocManager::install("DESeq2")
+
+
+library(DESeq2)
+library(apeglm)
+library(tidyverse)
+library(ape)
+```
+
+DESeq2 script based upon:
+http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#why-un-normalized-counts
+and 
+https://github.com/CBC-UCONN/RNA-seq-with-reference-genome-and-annotation
+
+### DESeq 2 analysis
+
+```{r}
+directory <- "~/Documents/UMD/Cry_resistance_RNAseq/count_data/"
+
+sampleFiles <- list.files(directory, pattern = ".*.CDS2.counts")
+
+print(sampleFiles)
+```
+
+```{r}
+sampleNames <- c("Benzon_Pool_1","Benzon_Pool_2","Benzon_Pool_3","Benzon_Pool_4", "Benzon_Pool_5", "Benzon_Pool_6", "Benzon_Pool_7", "Benzon_Pool_8", "ObsI_Pool_1", "ObsI_Pool_2", "ObsI_Pool_3", "ObsI_Pool_4", "ObsI_Pool_5", "ObsI_Pool_6", "ObsI_Pool_7", "ObsI_Pool_8", "ObsII_Pool_1", "ObsII_Pool_2", "ObsII_Pool_3", "ObsII_Pool_4", "ObsII_Pool_5", "ObsII_Pool_6", "ObsII_Pool_7", "ObsII_Pool_8")
+
+sampleCondition <- c("Benzon", "Benzon", "Benzon", "Benzon", "Benzon", "Benzon", "Benzon", "Benzon", "Obs_I", "Obs_I", "Obs_I", "Obs_I", "Obs_I", "Obs_I", "Obs_I", "Obs_I", "Obs_II", "Obs_II", "Obs_II", "Obs_II", "Obs_II", "Obs_II", "Obs_II", "Obs_II")
+
+sampleBatch <- c("1", "2", "3", "4", "5", "6", "7", "8", "1", "2", "3", "4", "5", "6", "7", "8", "1", "2", "3", "4", "5", "6", "7", "8")
+
+sampleTable <- data.frame(
+		sampleName = sampleNames,
+		fileName = sampleFiles,
+		condition = sampleCondition,
+		batch = sampleBatch)
+
+sampleTable
+```
+
+```{r}
+ddsHTSeq <- DESeqDataSetFromHTSeqCount(
+		sampleTable = sampleTable, 
+		directory = directory, 
+		design = ~ batch + condition)
+```
+
+```{r}
+ddsHTSeq$condition <- factor(ddsHTSeq$condition, levels = c("Benzon","Obs_I","Obs_II"))
+
+ddsHTSeq$condition
+```
+
+
+```{r}
+dds <- DESeq(ddsHTSeq)
+```
+
+## Set lfc threshold, view summary stats
+
+
+```{r}
+#contrast <- c("condition", "Obs_II", "Benzon")
+
+res_ObsIIvBenz <- results(dds, alpha = 0.05, contrast = c("condition", "Obs_II", "Benzon"))
+res_ObsIvBenz <- results(dds, alpha = 0.05, contrast = c("condition", "Obs_I", "Benzon"))
+
+summary(res_ObsIIvBenz)
+summary(res_ObsIvBenz)
+```
+
+
+## Log fold change shrinkage 
+Reduces varability found in genes with low expression
+
+```{r}
+resLFC_ObsIIvBenz <- lfcShrink(dds, coef="condition_Obs_II_vs_Benzon", type="apeglm")
+resLFC_ObsIvBenz <- lfcShrink(dds, coef="condition_Obs_I_vs_Benzon", type="apeglm")
+
+
+```
+ 
+
+### Associate gene info with expression results
+
+```{r}
+annotations <- read.gff("~/Documents/UMD/Cry_resistance_RNAseq/liftover_Hz_GAR_r1.0_annotation_mod.gff3") 
+
+annotations <- annotations %>%
+  filter(type == "gene") %>%
+  separate(col = attributes, sep = ";", into = c("ID", "Name", "Note")) %>%
+  mutate(ID = gsub(".*=", "", ID)) %>%
+  mutate(Name = gsub(".*=", "", Name)) %>%
+  mutate(Note = gsub(".*=", "", Note))
+```
+
+### Export table with all annotated genes and expression results
+
+```{r}
+resLFC_ObsIIvBenz$ID <- row.names(resLFC_ObsIIvBenz)
+resLFC_ObsIvBenz$ID <- row.names(resLFC_ObsIvBenz)
+
+result_table_lfc_ObsIIvBenz <- merge(data.frame(resLFC_ObsIIvBenz), annotations, by = "ID") %>%
+  select(ID, Name, Note, baseMean, log2FoldChange, lfcSE, pvalue, padj, seqid, start, end, strand) %>%
+  rename("GFF_gene_ID" = "ID" , "GFF_gene_name" = "Name" , "GFF_note" = "Note", "Chromosome"= "seqid")
+
+result_table_lfc_ObsIvBenz <- merge(data.frame(resLFC_ObsIvBenz), annotations, by = "ID") %>%
+  select(ID, Name, Note, baseMean, log2FoldChange, lfcSE, pvalue, padj, seqid, start, end, strand) %>%
+  rename("GFF_gene_ID" = "ID" , "GFF_gene_name" = "Name" , "GFF_note" = "Note", "Chromosome"= "seqid")
+
+write.csv(result_table_lfc_ObsIIvBenz,"~/Documents/UMD/Cry_resistance_RNAseq/DESeq2_result_table_lfc_ObsIIvBenz.csv")
+write.csv(result_table_lfc_ObsIvBenz,"~/Documents/UMD/Cry_resistance_RNAseq/DESeq2_result_table_lfc_ObsIvBenz.csv")
+```
+
+
+
+### Usual suspects
+
+
+```{r}
+names <- c("HzeaTryp073","HzeaTryp076","HzeaTryp075","HzeaTryp077","HzeaTryp078","HzeaTryp079","HzeaTryp080")
+chr <- c("Hz_09","Hz_09","Hz_09","Hz_09","Hz_09","Hz_09","Hz_09")
+
+usual_suspects <- data.frame(cbind(names, chr))
+```
+
+```{r}
+usual_suspects_annotations <- inner_join(annotations, usual_suspects, by = c("seqid" = "chr", "Note" = "names"))
+```
+
+```{r}
+usual_dds <- results(dds %>% subset(rownames(dds) %in% usual_suspects_annotations$ID))
+usual_dds$ID <- row.names(usual_dds)
+usual_results <- merge(as.data.frame(usual_dds), usual_suspects_annotations, by = "ID") #%>%
+ # select(names, ID, Name, Note, baseMean, log2FoldChange, lfcSE, stat, pvalue, padj, seqid, start, end.x, strand)# %>%
+  #rename(Name = names, GFF_gene_ID = ID, GFF_gene_name = Name, GFF_note = Note, Scaffold = seqid)
+
+#write.csv(usual_results,"~/Documents/UMD/Lawrie_RNASeq_data/DESeq2_result_usual_suspects.csv")
+```
+
+
+```{r}
+usual_results %>%
+  select(ID, Note, log2FoldChange, padj) %>%
+  arrange(log2FoldChange)
+```
+
+
+```{r}
+pdf("~/Desktop/APN_suspects_counts.pdf") 
+par(mfrow=c(3,2))
+plotCounts(dds, gene="1168816", intgroup="condition",  main ="HaAPN7")
+plotCounts(dds, gene="1168902", intgroup="condition", main = "HaAPN5")
+plotCounts(dds, gene="1583544", intgroup="condition", main = "HaAPN9")
+plotCounts(dds, gene="174706", intgroup="condition", main = "HaAPNM")
+plotCounts(dds, gene="174798", intgroup="condition", main = "HaAPN3")
+plotCounts(dds, gene="587288", intgroup="condition", main = "HaAPN1")
+plotCounts(dds, gene="587363", intgroup="condition", main = "HaAPN4")
+plotCounts(dds, gene="587561", intgroup="condition", main = "HaAPN8")
+plotCounts(dds, gene="732100", intgroup="condition", main = "HaAPN6")
+dev.off()
+```
+
+
+
+```{r}
+pdf("~/Desktop/TRYP_suspects_counts.pdf") 
+par(mfrow=c(3,2))
+plotCounts(dds, gene="1025892", intgroup="condition",  main ="HzeaTryp073")
+plotCounts(dds, gene="749622", intgroup="condition", main = "HzeaTryp079")
+plotCounts(dds, gene="31165", intgroup="condition", main = "HzeaTryp077")
+plotCounts(dds, gene="31122", intgroup="condition", main = "HzeaTryp076")
+plotCounts(dds, gene="31189", intgroup="condition", main = "HzeaTryp078")
+plotCounts(dds, gene="15154", intgroup="condition", main = "HzeaTryp075")
+dev.off()
+```
+
+```{r}
+plotCounts(dds, gene="173804", intgroup="condition",  main = "cadherin-87A-like")
+```
+
+
+```{r}
+plotCounts(dds, gene="28068", intgroup="condition",  main = "HzeaABCG15")
+```
+
+```{r}
+plotCounts(dds, gene="781747", intgroup="condition",  main = "HzeaCYP301B1")
+```
+
+```{r}
+pdf("~/Desktop/interesting_gene_counts.pdf") 
+par(mfrow=c(3,2))
+plotCounts(dds, gene="173804", intgroup="condition",  main = "cadherin-87A-like")
+plotCounts(dds, gene="28068", intgroup="condition",  main = "HzeaABCG15")
+plotCounts(dds, gene="781747", intgroup="condition",  main = "HzeaCYP301B1")
+plotCounts(dds, gene="31734", intgroup="condition", main = "HzeaTryp119")
+plotCounts(dds, gene="1558189", intgroup="condition", main = "HzeaABCG4-white")
+plotCounts(dds, gene="28235", intgroup="condition", main = "HzeaABCC11")
+plotCounts(dds, gene="587288", intgroup="condition", main = "HaAPN1")
+plotCounts(dds, gene="587363", intgroup="condition", main = "HaAPN4")
+
+dev.off()
+```
+
+
+
+
+

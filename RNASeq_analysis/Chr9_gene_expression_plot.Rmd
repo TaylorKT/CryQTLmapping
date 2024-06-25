@@ -1,0 +1,35 @@
+```{r}
+library(tidyverse)
+
+theme_set(theme_bw(base_size=10))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  plot.title = element_text(),
+  panel.margin = unit(0, "lines"),
+  strip.background = element_blank(),
+  panel.border = element_blank(),
+  legend.position = "none", 
+  strip.text.x = element_text(margin = margin(0,0,0,0, "cm")))
+```
+
+
+```{r}
+df <- read.csv("~/Documents/UMD/Cry_resistance_RNAseq/DESeq2_result_table_lfc_ObsIIvBenz.csv")
+```
+
+```{r}
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/gemma/ObsIIvBenzon_Chr9_plot.jpg", width = 12, height = 3, units = "cm", res = 700)
+
+df %>%
+  filter(Chromosome == "Hz_09") %>%
+  ggplot(aes(y = log2FoldChange, x = as.numeric(((start+end)/2)/1000000))) +
+  geom_point(cex = 0.3, alpha = 0.5, shape = 20) +
+  geom_point(data = df %>% filter(Chromosome == "Hz_09") %>% filter(padj < 0.01),
+             aes(y = log2FoldChange, x = as.numeric(((start+end)/2)/1000000)), cex = 0.3, color= "red", shape = 20) +
+  labs(x = "", y = "log2 fold change") +
+  theme(text=element_text(size=6)) + 
+  annotate("rect", xmin=5.2, xmax= 5.4, ymin=0, ymax=Inf, alpha=0.2, fill="blue") 
+
+#dev.off()
+```
+

@@ -1,0 +1,96 @@
+# Run FastQC
+
+/home/ktaylor/programs/FastQC/fastqc *
+
+# Trimmomatic 
+
+for file in `ls ~/yspace/RNASeq/Jane_data/raw_data/Benzon*R1.fastq.gz`
+do
+base=$(basename $file "_R1.fastq.gz")
+java -jar ~/programs/Trimmomatic-0.39/trimmomatic-0.39.jar PE -threads 1 \
+~/yspace/RNASeq/Jane_data/raw_data/${base}_R1.fastq.gz ~/yspace/RNASeq/Jane_data/raw_data/${base}_R2.fastq.gz \
+${base}_forward_paired.fq.gz ${base}_forward_unpaired.fq.gz ${base}_reverse_paired.fq.gz ${base}_reverse_unpaired.fq.gz \
+ILLUMINACLIP:adapters.fa:2:30:10:2:keepBothReads MINLEN:36 SLIDINGWINDOW:4:20
+done
+
+
+for file in `ls ~/yspace/RNASeq/Jane_data/raw_data/ObsI_*R1.fastq.gz`
+do
+base=$(basename $file "_R1.fastq.gz")
+java -jar ~/programs/Trimmomatic-0.39/trimmomatic-0.39.jar PE -threads 1 \
+~/yspace/RNASeq/Jane_data/raw_data/${base}_R1.fastq.gz ~/yspace/RNASeq/Jane_data/raw_data/${base}_R2.fastq.gz \
+${base}_forward_paired.fq.gz ${base}_forward_unpaired.fq.gz ${base}_reverse_paired.fq.gz ${base}_reverse_unpaired.fq.gz \
+ILLUMINACLIP:adapters.fa:2:30:10:2:keepBothReads MINLEN:36 SLIDINGWINDOW:4:20
+done
+
+
+for file in `ls ~/yspace/RNASeq/Jane_data/raw_data/ObsII_*R1.fastq.gz`
+do
+base=$(basename $file "_R1.fastq.gz")
+java -jar ~/programs/Trimmomatic-0.39/trimmomatic-0.39.jar PE -threads 1 \
+~/yspace/RNASeq/Jane_data/raw_data/${base}_R1.fastq.gz ~/yspace/RNASeq/Jane_data/raw_data/${base}_R2.fastq.gz \
+${base}_forward_paired.fq.gz ${base}_forward_unpaired.fq.gz ${base}_reverse_paired.fq.gz ${base}_reverse_unpaired.fq.gz \
+ILLUMINACLIP:adapters.fa:2:30:10:2:keepBothReads MINLEN:36 SLIDINGWINDOW:4:20
+done
+
+
+# Build index for Hisat2 alignment 
+
+~/programs/hisat2-2.2.1/hisat2-build ~/yspace/reference_genome/Hz_GAR_r1.0.fa Hz_GAR
+
+# Align reads
+
+for file in `ls ~/yspace/RNASeq/Jane_data/trimmed/*_Pool_1_forward_paired.fq.gz`
+do
+base=$(basename $file "_forward_paired.fq.gz")
+~/programs/hisat2-2.2.1/hisat2 -p 2 --dta -x ~/yspace/reference_genome/Hz_GAR \
+-1 ~/yspace/RNASeq/Jane_data/trimmed/${base}_forward_paired.fq.gz \
+-2 ~/yspace/RNASeq/Jane_data/trimmed/${base}_reverse_paired.fq.gz \
+-S ~/yspace/RNASeq/Jane_data/aligned/${base}.sam
+done
+
+# Convert sam to sorted bam
+
+for file in `ls ~/yspace/RNASeq/Jane_data/aligned/Ben*Pool_1.sam`
+do
+base=$(basename $file ".sam")
+samtools view -@ 1 -S -h -u ${base}.sam | \
+samtools sort -@ 1 -T ${base} - > ${base}.bam
+done
+
+#Index Bams
+
+for file in `ls ~/yspace/RNASeq/Jane_data/aligned/*.bam`
+do
+base=$(basename $file ".bam")
+samtools index ${base}.bam
+done
+
+
+# Alignment QC
+
+~/programs/qualimap_v2.2.1/qualimap multi-bamqc --data bam_list.txt --run-bamqc --java-mem-size=10000M
+
+
+## Liftoff annotations from Hz5p5 to new Hz_GAR
+
+~/miniconda3/bin/liftoff \
+-g ~/yspace/reference_genome/HzOGS2-15205-fixed_note-added.gff3 \
+-o ~/yspace/reference_genome/liftover_Hz_GAR_r1.0_annotation.gff3 \
+-polish -m ~/miniconda3/bin/minimap2 \
+~/yspace/reference_genome/Hz_GAR_r1.0.fa ~/yspace/reference_genome/hz5p5.fas
+
+
+# Htseq count generate counts
+
+for file in `ls ~/yspace/RNASeq/Jane_data/aligned/Benz*Pool_1.bam`
+do
+base=$(basename $file ".bam")
+~/miniconda3/bin/htseq-count -s no -r pos -f bam --type gene \
+-i ID ~/yspace/RNASeq/Jane_data/aligned/${base}.bam \
+~/yspace/reference_genome/liftover_Hz_GAR_r1.0_annotation_mod.gff3 \
+> ${base}.counts
+done
+
+
+
