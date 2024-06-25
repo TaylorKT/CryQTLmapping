@@ -1,0 +1,12 @@
+
+# Read quality trimming
+
+for file in `ls ~/yspace/Hzea_crosses/raw_data/parents/*R1.fastq.gz`; 
+do
+base=$(basename $file "R1.fastq.gz")
+java -jar ~/programs/Trimmomatic-0.39/trimmomatic-0.39.jar PE -threads 2 \
+~/yspace/Hzea_crosses/raw_data/parents/${base}R1.fastq.gz \
+~/yspace/Hzea_crosses/raw_data/parents/${base}R2.fastq.gz \
+${base}forward_paired.fq.gz ${base}forward_unpaired.fq.gz ${base}reverse_paired.fq.gz ${base}reverse_unpaired.fq.gz \
+ILLUMINACLIP:TruSeq2-PE.fa:2:30:10:2:keepBothReads LEADING:3 TRAILING:3 SLIDINGWINDOW:4:30 MINLEN:36 
+done

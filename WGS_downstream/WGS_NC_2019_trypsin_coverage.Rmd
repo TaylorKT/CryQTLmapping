@@ -1,0 +1,182 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+```{r}
+library(tidyverse)
+library(reshape)
+library(zoo)
+
+theme_set(theme_bw(base_size=12))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  legend.position = "none",
+  panel.spacing = unit(1, "lines"))
+```
+
+## Calculate whole genome average coverage and targeted coverage of the tryp region
+```{bash}
+#Hz_09   5273366 5340510 test    0       .
+
+#cd /home/kate/yspace/daniela/aligned_GAR
+#ls *.bam > bam_list.txt
+
+#samtools depth -a -r Hz_09:5000000-6000000 -f ./bam_list.txt > ./daniela_data_tryp_site_depth5_6.txt
+
+#ls *.bam > bam_list_qualimap.txt
+#~/miniconda3/bin/qualimap multi-bamqc -r --data bam_list_qualimap.txt --java-mem-size=20000M
+
+#~/miniconda3/bin/qualimap bamqc -bam nc97_2019_S30_L001.bam -outdir nc97_2019_S30_L001.bam
+```
+
+## Read in the tryp cluster coverage
+```{r}
+cov <- read.table("~/Documents/UMD/Daniela_data/tryp_coverage/daniela_data_tryp_site_depth5_6.txt", header = FALSE)
+
+names <- read.table("~/Documents/UMD/Daniela_data/tryp_coverage/bam_list_daniela.txt", header = FALSE) %>%
+  mutate(names = str_replace(V1, "\\..*$", "")) %>%
+  select(names)
+
+col_names <- data.frame(
+  names = c("chr", "pos"))
+col_names <- rbind(col_names,names)
+colnames(cov) <- col_names$names
+```
+
+## Read in the whole genome average coverage
+```{r}
+wg_cov <- read.csv("~/Documents/UMD/Daniela_data/tryp_coverage/daniela_tryp_depth_genome_wide.csv", header = TRUE)
+```
+
+## Read in sample/treatment info
+```{r}
+treatments <- read.csv("~/Documents/UMD/Daniela_data/tryp_coverage/sample_treatments_cry.csv", header = TRUE)
+```
+
+## Make a more usable data frame
+
+excluded in daniela paper, also excluded here: nc338, nc376, nc409
+```{r}
+cov_roll <- rollapply(cov[,3:length(cov)], width = 10000, by = 10000, FUN = mean)
+
+cov_roll_long <- melt(cov_roll) 
+
+cov_roll_long_norm <- merge(wg_cov, cov_roll_long, by.x = "Sample", by.y = "X2") %>%
+  mutate(norm_cov = value/Mean_depth)
+
+cov_roll_long_norm <- merge(cov_roll_long_norm, treatments, by = "Sample") %>%
+  mutate(pos = as.numeric(5+(X1*.01))) %>%
+  filter(Sample != "nc376_2019_S127_L002" & Sample !=  "nc338_2019_S110_L002" & Sample != "nc409_2019_S132_L002")
+```
+
+# Sample stats
+```{r}
+treatments %>%
+  filter(Sample != "nc376_2019_S127_L002" & Sample !=  "nc338_2019_S110_L002" & Sample != "nc409_2019_S132_L002") %>%
+  summarize(n=n())
+```
+
+# Plot coverage signals by treatment
+```{r}
+
+theme_set(theme_bw(base_size=12))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  legend.position = "none",
+  panel.spacing = unit(1, "lines"))
+
+jpeg("~/Documents/UMD/Daniela_data/tryp_coverage/tryp_coverage_daniela_data_multipanel.jpg", width = 16, height = 8, units = "cm", res = 700)
+
+cov_roll_long_norm %>%
+  ggplot(aes(x = pos, y = norm_cov)) +
+  geom_point(alpha = 0.2, size = 0.2) +
+  labs(y = "Relative coverage", x = "Chromosome 9 position (Mb)") +
+  xlim(5.0,5.5) +
+  facet_wrap(~factor(treatment, levels = c("1_nonbt", "3_nonbt", "3_bt"), labels = c("Structured refuge", "Blended refuge", "Cry1Ab+Cry1F")))
+
+dev.off()
+
+```
+
+## Calculate average coverage for trypsin containing and CTL region
+
+
+```{r}
+tryp_ave_cov <- cov_roll_long_norm %>% 
+  filter(pos > 5.22 & pos < 5.37) %>%
+  group_by(Sample, treatment) %>%
+  summarize(mean = mean(norm_cov))
+
+
+ctl_ave_cov <- cov_roll_long_norm %>% 
+  filter(pos > 5.52 & pos < 5.67) %>%
+  group_by(Sample, treatment) %>%
+  summarize(mean = mean(norm_cov))
+
+```
+
+## Make plot and do stats to compare coverage between treatments for the trypsin containing region from 5.6 - 5.8 Mb on Chr 9
+
+```{r}
+jpeg("~/Documents/UMD/Daniela_data/tryp_coverage/tryp_coverage_daniela_data_boxplot.jpg", width = 8, height = 8,  units = "cm", res = 700)
+
+tryp_ave_cov %>%
+ggplot(aes(x = factor(treatment, levels = c("1_nonbt", "3_nonbt", "3_bt"), labels = c("Refuge", "Blended Refuge", "Cry")), y = mean, fill = treatment)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width=0.05) +
+  scale_fill_manual(values = c("grey90", "grey40","grey65")) +
+  labs(y = "Mean coverage", x = "Treatment") 
+
+dev.off()
+```
+
+
+```{r}
+summary(aov(mean ~ treatment, data = tryp_ave_cov))
+```
+
+
+```{r}
+comp_1v3 <- tryp_ave_cov %>% filter(treatment == "1_nonbt" | treatment == "3_nonbt")
+comp_1v3bt <- tryp_ave_cov %>% filter(treatment == "1_nonbt" | treatment == "3_bt")
+comp_3v3bt <- tryp_ave_cov %>% filter(treatment == "3_nonbt" | treatment == "3_bt")
+
+
+
+t.test(mean~treatment, data = comp_1v3)
+t.test(mean~treatment, data = comp_1v3bt)
+t.test(mean~treatment, data = comp_3v3bt)
+
+
+0.05/3
+```
+
+
+
+## Make plot and do stats for the CTL region from 5.6 - 5.8 Mb on Chr 9
+
+```{r}
+#jpeg("~/Desktop/tryp_coverage_daniela_data_boxplot_5.6_5.8.jpg", width = 20, height = 10, units = "cm", res = 700)
+
+ctl_ave_cov %>%
+ggplot(aes(x = factor(treatment, levels = c("1_nonbt", "3_nonbt", "3_bt"), labels = c("Structured Refuge", "Blended Refuge", "Cry Expressing")) , y = mean)) +
+  geom_boxplot(outlier.shape = NA, notch = TRUE) +
+  geom_jitter(width=0.3) +
+  labs(y = "Normalized coverage 5.6 - 5.8 Mb Chr 9", x = "Treatment") 
+
+#dev.off()
+```
+
+```{r}
+summary(aov(mean ~ treatment, data = ctl_ave_cov))
+
+pairwise.t.test(ctl_ave_cov$mean, ctl_ave_cov$treatment, p.adjust.method = "bonferroni")
+```
+
+
+```{r}
+tryp_ave_cov %>%
+  group_by(population) %>%
+  summarize(min = min(mean), max = max(mean), mean = mean(mean), n = n())
+```

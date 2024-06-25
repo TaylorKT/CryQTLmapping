@@ -1,0 +1,26 @@
+
+bcftools reheader --samples reheader_samples_fix.txt parents_GAR_filter.vcf > parents_GAR_filter_reheadr.vcf\
+
+# Calculate FST across the parents
+
+cd ~/yspace/Hzea_crosses/parents/FST\
+
+~/programs/vcftools/bin/vcftools --vcf ../vcf/parents_GAR_filter_reheadr.vcf \\\
+--weir-fst-pop benzon.txt --weir-fst-pop field.txt --fst-window-size 10000 \\\
+--fst-window-step 1000 --out weirfst_benzon_field_parents_10\
+
+~/programs/vcftools/bin/vcftools --vcf ../vcf/parents_GAR_filter_reheadr.vcf \\\
+--weir-fst-pop benzon.txt --weir-fst-pop field.txt --fst-window-size 20000 \\\
+--fst-window-step 1000 --out weirfst_benzon_field_parents_20\
+
+~/programs/vcftools/bin/vcftools --vcf ../vcf/parents_GAR_filter_reheadr.vcf \\\
+--weir-fst-pop benzon.txt --weir-fst-pop field.txt --fst-window-size 40000 \\\
+--fst-window-step 1000 --out weirfst_benzon_field_parents_40\
+
+
+# PCA for parents
+
+cd ~/yspace/Hzea_crosses/parents/PCA\
+
+~/programs/plink --vcf ../vcf/parents_GAR_filter_reheadr.vcf --make-bed --allow-extra-chr --double-id --out parents_GAR \
+~/programs/plink --bfile parents_GAR --pca --allow-extra-chr --out parents_pca\

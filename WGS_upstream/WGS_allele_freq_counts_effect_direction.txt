@@ -1,0 +1,14 @@
+
+# Get major and minor allele frequencies for field and benzon populations for analysis to eventually get direction of effect
+# Also check in the offspring to see which of the WGS markers are in the RAD data set
+
+cd ~/yspace/Hzea_crosses/parents/vcf/
+
+~/programs/vcftools/bin/vcftools --vcf ~/yspace/Hzea_crosses/parents/vcf/parents_benzon.vcf \
+--counts --out ./counts_stats_benzon
+
+~/programs/vcftools/bin/vcftools --vcf ~/yspace/Hzea_crosses/parents/vcf/parents_field.vcf \
+--counts --out ./counts_stats_field
+
+~/programs/vcftools/bin/vcftools --vcf ~/yspace/Hzea_crosses/offspring/vcf/Cry_QTL_filter.vcf \
+--counts --out ./counts_stats_offspring

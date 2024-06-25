@@ -1,0 +1,242 @@
+```{r}
+library(tidyverse)
+library(reshape)
+library(zoo)
+theme_set(theme_bw(base_size=12))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+cov <- read.table("~/Documents/UMD/Replicated_cry_crosses/parents/calc_coverage_parents.out", header = TRUE)
+
+colnames(cov) <- c("CHROM", "POS", "BV20_AA27_P8_BZM2_F_Field", "BV20_AA27_P8_BZM1_M_Benzon", "BV20_BP68_O8_BZM2_M_Benzon", "BV20_BP68_O8_BZM1_F_Field", "BV20_AA27_O8_BZF2_F_Benzon", "BV20_AA27_O8_BZF1_M_Field", "BV20_G7_04_BZF2_M_Field", "BV20_G7_04_BZF1_F_Benzon","BV20_AA27_P6_BZM2_F_Field", "BV20_AA27_P6_BZM1_M_Benzon", "BV20_AA27_O1_BZF2_F_Benzon", "BV20_AA27_O1_BZF1_M_Field", "BV20_EI139_P5_BZM2_F_Field", "BV20_EI139_P5_BZM1_M_Benzon", "BV20_EH138_P1_BZF2_M_Field", "BV20_EH138_P1_BZF1_F_Benzon", "BV_CV98_P7_BZF2_M_Field", "BV_CV98_P7_BZF1_F_Benzon", "BV_DB104_O6_BZF2_M_Field", "BV_DB104_O6_BZF1_F_Benzon")
+
+cov_long <- melt(cov, id=c("CHROM","POS")) %>%
+  mutate(population = case_when(
+    grepl('Field', variable) ~ "Resistant",
+    grepl('Benzon', variable) ~ "Susceptible"))
+```
+
+
+```{r}
+cov_roll <- rollapply(cov[,3:length(cov)], width = 10000, by = 10000, FUN = mean)
+
+cov_roll_long <- melt(cov_roll) %>%
+  mutate(population = case_when(
+    grepl('Field', X2) ~ "Resistant",
+    grepl('Benzon', X2) ~ "Susceptible"))
+
+
+```
+
+
+```{r}
+cov_stats <- read.csv("~/Documents/UMD/Replicated_cry_crosses/parents/parents_cov.csv", header = FALSE)
+
+colnames(cov_stats) <- c("SRR", "name", "cov")
+
+cov_roll_long_norm <- merge(cov_stats, cov_roll_long, by.x = "name", by.y = "X2") %>%
+  mutate(norm_value = value/cov) 
+
+cov_roll_long_norm$population <- factor(cov_roll_long_norm$population, levels = c("Susceptible", "Resistant"))
+
+```
+
+```{r}
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/parents/Chr9cov_susceptible_parents.jpg", width = 20, height = 20, units = "cm", res = 300)
+cov_roll_long_norm %>%
+  filter(population == "Susceptible") %>%
+  ggplot(aes(x = as.numeric(5+(X1*.01)), y = norm_value)) +
+    geom_point(alpha = 0.5) +
+    scale_y_continuous(breaks = seq(0, 6, by = 1)) +
+    ylim(0,5)+
+  labs(y = "Relative coverage", x = "Chromosome 9 position (Mb)") +
+  theme(text=element_text(size=30)) 
+#dev.off()
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/parents/Chr9cov_resistant_parents.jpg", width = 20, height = 20, units = "cm", res = 300)
+cov_roll_long_norm %>%
+  filter(population == "Resistant") %>%
+  ggplot(aes(x = as.numeric(5+(X1*.01)), y = norm_value)) +
+    geom_point(alpha = 0.5) +
+    scale_y_continuous(breaks = seq(0, 6, by = 1)) +
+    ylim(0,5)+
+  labs(y = "Relative coverage", x = "Chromosome 9 position (Mb)") +
+  theme(text=element_text(size=30)) 
+#dev.off()
+```
+
+
+
+```{r}
+theme_set(theme_bw(base_size=12))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  legend.position = "none",
+  panel.spacing = unit(1, "lines"))
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/parents/Chr9cov_parents_multipanel.jpg", width = 16, height = 8, units = "cm", res = 300)
+cov_roll_long_norm %>%
+  ggplot(aes(x = as.numeric(5+(X1*.01)), y = norm_value)) +
+    geom_point(alpha = 0.5, size = 0.2) +
+    scale_y_continuous(breaks = seq(0, 3, by = 0.5)) +
+    ylim(0,5) +
+    labs(y = "Relative coverage", x = "Chromosome 9 position (Mb)") +
+    facet_wrap(~population) 
+#dev.off()
+
+```
+
+```{r}
+cov_roll_long_norm %>%
+  filter(X1 == "30") %>%
+  select(name, norm_value)
+
+
+mean_cov_table <- cov_roll_long_norm %>%
+  filter(X1 >= 22 & X1 <= 37) %>%
+  group_by(name) %>%
+  summarize(mean = mean(norm_value)) 
+```
+
+
+```{r}
+CNV <- read.csv("~/Documents/UMD/ddPCR/ddpcr_CNV_parents.csv")
+
+ddpcr_cov_compare <- merge(CNV, mean_cov_table, by = "name")
+```
+
+
+
+```{r}
+theme_set(theme_bw(base_size=12))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  legend.position = "none")
+
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/coverage_phenotype_correlation/copy_number_coverage_plot_trendline_bw.jpg",width = 8, height = 8, units = "cm", res = 700)
+ddpcr_cov_compare %>%
+#filter(name != "BV20_AA27_O8_BZF1_M_Field", name != "BV20_G7_04_BZF2_M_Field") %>%
+ggplot(aes(x = CNV*2, y = mean)) +
+  geom_smooth(method = "lm", se=FALSE, color = "black", cex = 0.5) +
+  geom_point(aes(fill = predict), shape = 21, color = "black", cex = 3) +
+  scale_fill_manual(values = c("grey90", "grey40")) +
+  labs(y = "Mean coverage", x = "Copy number") +
+  xlim(0,8)
+  
+#dev.off()
+```
+
+
+
+```{r}
+summary(lm(CNV~mean,data=ddpcr_cov_compare%>%filter(name != "BV20_AA27_O8_BZF1_M_Field", name != "BV20_G7_04_BZF2_M_Field")))$r.squared
+```
+
+
+
+# Coverage plots for time series data
+
+
+```{r}
+cov <- read.table("~/Documents/UMD/Replicated_cry_crosses/parents/timeseries_coverage.out", header = TRUE)
+
+colnames(cov)
+
+colnames(cov) <- c("CHROM", "POS", "WGS_AMD_LA_2002_10", "WGS_AMD_LA_2002_9", "WGS_AMD_LA_2002_8", "WGS_AMD_LA_2002_7", "WGS_AMD_LA_2002_6", "WGS_AMD_LA_2002_5", "WGS_AMD_LA_2002_4", "WGS_AMD_LA_2002_3", "WGS_AMD_LA_2002_13", "WGS_AMD_LA_2002_12", "WGS_AMD_LA_2002_11", "WGS_AMD_LA_2002_2", "WGS_AMD_LA_2002_1", "WGS_AMD_LA_2012_11", "WGS_AMD_LA_2012_10", "WGS_AMD_LA_2012_9", "WGS_AMD_LA_2012_7", "WGS_AMD_LA_2012_6", "WGS_AMD_LA_2012_5", "WGS_AMD_LA_2012_4","WGS_AMD_LA_2012_3", "WGS_AMD_LA_2012_12", "WGS_AMD_LA_2012_2", "WGS_AMD_LA_2012_1", "WGS_AMD_LA_2017_10", "WGS_AMD_LA_2017_9", "WGS_AMD_LA_2017_8", "WGS_AMD_LA_2017_7", "WGS_AMD_LA_2017_6", "WGS_AMD_LA_2017_5", "WGS_AMD_LA_2017_4", "WGS_AMD_LA_2017_3", "WGS_AMD_LA_2017_11", "WGS_AMD_LA_2017_2", "WGS_AMD_LA_2017_1", "MD_Hz_nonBt_2", "MD_Hz_nonBt_1", "MD_Hz_Bt_8", "MD_Hz_Bt_7", "MD_Hz_Bt_6", "MD_Hz_Bt_5", "MD_Hz_Bt_4", "MD_Hz_Bt_3", "MD_Hz_nonBt_8", "MD_Hz_nonBt_7", "MD_Hz_nonBt_6", "MD_Hz_nonBt_5", "MD_Hz_nonBt_4", "MD_Hz_nonBt_3", "MD_Hz_Bt_2", "MD_Hz_Bt_1")
+
+
+
+```
+
+
+```{r}
+cov_long <- melt(cov, id=c("CHROM","POS"))
+
+cov_roll <- rollapply(cov[,3:length(cov)], width = 10000, by = 10000, FUN = mean)
+
+cov_roll_long <- melt(cov_roll)  %>%
+  mutate(population = case_when(
+    grepl('2002', X2) ~ "2002",
+    grepl('2012', X2) ~ "2012",
+    grepl('2017', X2) ~ "2017",
+    grepl('nonBt', X2) ~ "nonBt",
+    TRUE ~ "Bt"))
+```
+
+```{r}
+cov_stats <- read.csv("~/Documents/UMD/Replicated_cry_crosses/parents/WGS_coverage.csv", header = FALSE)
+
+colnames(cov_stats) <- c("SRR", "name", "cov")
+
+cov_roll_long_norm <- merge(cov_stats, cov_roll_long, by.x = "name", by.y = "X2") %>%
+  mutate(norm_value = value/cov) 
+
+cov_roll_long_norm$population <- factor(cov_roll_long_norm$population, levels = c("2002", "2012", "2017", "nonBt", "Bt"))
+```
+
+
+
+
+```{r}
+
+theme_set(theme_bw(base_size=9))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  legend.position = "none")
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/parents/Chr9cov_timeseries_2000_5x8.jpg", width = 5, height = 8, units = "cm", res = 300)
+cov_roll_long_norm %>%
+  filter(population == "2002") %>%
+  ggplot(aes(x = as.numeric(5+(X1*.01)), y = norm_value)) +
+    geom_point(alpha = 0.5, size = 0.2) +
+    scale_y_continuous(breaks = seq(0, 3, by = 0.5)) +
+    ylim(0,5) +
+  labs(y = "Relative coverage", x = "Chromosome 9 position (Mb)") 
+
+#dev.off()
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/parents/Chr9cov_timeseries_2012_5x8.jpg", width = 5, height = 8, units = "cm", res = 300)
+cov_roll_long_norm %>%
+  filter(population == "2012") %>%
+  ggplot(aes(x = as.numeric(5+(X1*.01)), y = norm_value)) +
+    geom_point(alpha = 0.5, size = 0.2) +
+    scale_y_continuous(breaks = seq(0, 3, by = 0.5)) +
+    ylim(0,5) +
+  labs(y = "Relative coverage", x = "Chromosome 9 position (Mb)") 
+#dev.off()
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/parents/Chr9cov_timeseries2017.jpg_5x8,jpg", width = 5, height = 8, units = "cm", res = 300)
+cov_roll_long_norm %>%
+  filter(population == "2017") %>%
+  ggplot(aes(x = as.numeric(5+(X1*.01)), y = norm_value)) +
+    geom_point(alpha = 0.5, size = 0.2) +
+    scale_y_continuous(breaks = seq(0, 3, by = 0.5)) +
+    ylim(0,5) +
+  labs(y = "Relative coverage", x = "Chromosome 9 position (Mb)") 
+#dev.off()
+```
+
+
+```{r}
+theme_set(theme_bw(base_size=12))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  legend.position = "none",
+  panel.spacing = unit(1, "lines"))
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/parents/Chr9cov_timeseries_multipanel.jpg", width = 16, height = 8, units = "cm", res = 300)
+cov_roll_long_norm %>%
+  filter(population == "2017" | population == "2012" | population == "2002") %>%
+  ggplot(aes(x = as.numeric(5+(X1*.01)), y = norm_value)) +
+    geom_point(alpha = 0.5, size = 0.2) +
+    scale_y_continuous(breaks = seq(0, 3, by = 0.5)) +
+    ylim(0,5) +
+    labs(y = "Relative coverage", x = "Chromosome 9 position (Mb)") +
+    facet_wrap(~population) 
+#dev.off()
+
+```

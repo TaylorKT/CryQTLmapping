@@ -1,0 +1,49 @@
+```{r}
+library(tidyverse)
+library(gridExtra)
+library(grid)
+theme_set(theme_bw(base_size=10))
+theme_set(theme_bw(base_size=10))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  plot.title = element_text(),
+  axis.text.x = element_blank(),
+  axis.ticks.x = element_blank(),
+  panel.margin = unit(0, "lines"),
+  strip.background = element_blank(),
+  panel.border = element_blank(),
+  legend.position = "none", 
+  strip.text.x = element_text(margin = margin(0,0,0,0, "cm")))
+```
+
+```{r}
+markers <- read.table("/Users/kate/Documents/UMD/Replicated_cry_crosses/Cross_Parent_Allele_Freq/rad_marker_counts.txt", header = TRUE) %>% mutate(CHR = str_replace_all(CHROM, "Hz_", ""))
+```
+
+```{r}
+markers %>%
+  filter(abs(AC1_diff) == 20) %>%
+  group_by(CHROM) %>%
+  summarize(n=n())
+```
+
+
+
+```{r}
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/parents/plot_fixed_snps/Fixed_SNPs_by_Chrom.jpg", width = 12, height = 6, units = "cm", res = 700)
+
+markers %>%
+  filter(abs(AC1_diff) == 20) %>%
+  ggplot(aes(x = POS, color = as.factor(CHR))) +
+  geom_histogram(binwidth = 100000) +
+  scale_color_manual(values = rep(c("grey15", "grey65"), times = 24)) +
+  facet_wrap(~as.numeric(CHR), strip.position="bottom", nrow = 1, scales = "free_x") +
+  labs(x = "Chromosome", y = "Fixed SNP count") +
+  theme(text=element_text(size=9)) 
+
+#dev.off()
+```
+
+
+
+

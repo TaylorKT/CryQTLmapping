@@ -1,0 +1,16 @@
+## Analysis of GAR aligned cross parent variants
+
+bcftools stats parents_GAR.vcf > parents_GAR_stats.txt
+
+
+bcftools view --min-alleles 2 --max-alleles 2 \
+--include 'TYPE="snp" & QUAL>50 & F_MISSING<0.5 & MAF>0.05' \
+parents_GAR.vcf > parents_GAR_filter.vcf
+
+
+bcftools stats parents_GAR_filter.vcf > parents_GAR_filter_stats.txt
+
+## Rename samples
+
+bcftools reheader --samples reheader_samples_GAR.txt parents_GAR_filter.vcf > parents_GAR_filter_reheader.vcf
+

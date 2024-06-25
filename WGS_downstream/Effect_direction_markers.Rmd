@@ -1,0 +1,74 @@
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+
+benzon_counts <- read.table("~/Documents/UMD/Replicated_cry_crosses/Cross_Parent_Allele_Freq/counts_stats_benzon.frq.count", header = TRUE)
+
+field_counts <- read.table("~/Documents/UMD/Replicated_cry_crosses/Cross_Parent_Allele_Freq/counts_stats_field.frq.count", header = TRUE)
+
+offspring_counts <- read.table("~/Documents/UMD/Replicated_cry_crosses/Cross_Parent_Allele_Freq/counts_stats_offspring.frq.count", header = TRUE)
+
+```
+
+```{r}
+benzon_counts <- benzon_counts %>%
+separate(X.ALLELE.COUNT1., into = c("b_allele1", "b_count1"), sep = ":") %>%
+separate(X.ALLELE.COUNT2., into = c("b_allele2", "b_count2"), sep = ":")
+
+field_counts <- field_counts %>%
+separate(X.ALLELE.COUNT1., into = c("f_allele1", "f_count1"), sep = ":") %>%
+separate(X.ALLELE.COUNT2., into = c("f_allele2", "f_count2"), sep = ":")
+
+offspring_counts <- offspring_counts %>%
+separate(X.ALLELE.COUNT1., into = c("o_allele1", "o_count1"), sep = ":") %>%
+separate(X.ALLELE.COUNT2., into = c("o_allele2", "o_count2"), sep = ":")
+```
+
+
+```{r}
+list <-  mget(c("benzon_counts", "field_counts", "offspring_counts"))
+all_counts <- reduce(list, full_join, by = c("CHROM", "POS"))
+```
+
+# filter to only include the rad markers present in the offspring
+```{r}
+rad_marker_counts <- all_counts %>%
+  filter(o_allele1 != "" & b_allele1 != "" ) %>%
+  mutate(AC1_diff = as.numeric(f_count1) - as.numeric(b_count1)) %>%
+ mutate(AC2_diff = as.numeric(f_count2) - as.numeric(b_count2)) %>%
+ # mutate(effect_directions = case_when(AC1_diff > 0 ~ "F", AC1_diff < 0 ~ "B")) %>%
+  mutate(BENZ = case_when(AC1_diff < 0 & AC2_diff > 0 ~ b_allele1, AC1_diff > 0 & AC2_diff < 0 ~ b_allele2)) %>%
+  mutate(FIELD = case_when(AC1_diff > 0 & AC2_diff < 0 ~ f_allele1, AC1_diff < 0 & AC2_diff > 0 ~ f_allele2)) 
+
+nrow(rad_marker_counts)
+```
+
+
+```{r}
+ggplot(rad_marker_counts, aes(x = AC1_diff)) +
+  geom_histogram()
+
+ggplot(rad_marker_counts, aes(x = AC2_diff)) +
+  geom_histogram()
+```
+
+# Check how those selected markers are spread across the chromosomes 
+```{r}
+rad_marker_counts %>%
+  filter(abs(AC1_diff) > 8) %>%
+  group_by(CHROM) %>%
+  summarize(n=n()) %>%
+  ggplot( aes(x = CHROM, y = n)) +
+  geom_bar(stat="identity")
+```
+
+
+
+```{r}
+rad_marker_counts %>%
+  write.table("~/Documents/UMD/Replicated_cry_crosses/Cross_Parent_Allele_Freq/rad_marker_counts.txt", row.names = FALSE, quote = FALSE)
+```
+
