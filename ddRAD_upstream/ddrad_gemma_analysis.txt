@@ -1,0 +1,58 @@
+## Prepare files for gemma analysis for repeated F2 crosses for Cry resistance
+
+~/programs/plink --vcf Cry_QTL_filter.vcf --make-bed --out Cry_QTL --allow-extra-chr --const-fid "progeny"
+
+~/programs/plink --bfile Cry_QTL --const-fid "progeny" --allow-extra-chr --allow-no-sex \
+--pheno all_phenotype.txt --recode --make-bed --out ALL
+
+## Impute missing genotypes using link impute
+
+java -Xmx8g -jar ~/programs/LinkImpute.jar -q ALL.ped ALL.impute.ped
+
+## Format Imputed file for gemma
+
+~/programs/plink --ped ALL.impute.ped --map ALL.map --allow-no-sex \
+--make-bed --keep PDD.txt --out PDD_gemma --allow-extra-chr
+
+~/programs/plink --ped ALL.impute.ped --map ALL.map --allow-no-sex \
+--make-bed --keep PCL.txt --out PCL_gemma --allow-extra-chr
+
+~/programs/plink --ped ALL.impute.ped --map ALL.map --allow-no-sex \
+--make-bed --keep ODD.txt --out ODD_gemma --allow-extra-chr
+
+~/programs/plink --ped ALL.impute.ped --map ALL.map --allow-no-sex \
+--make-bed --keep OCL.txt --out OCL_gemma --allow-extra-chr
+
+## Run gemma lmm
+
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/ODD_gemma -lm 4 -o ODD
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/OCL_gemma -lm 4 -o OCL
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/PCL_gemma -lm 4 -o PCL
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/PDD_gemma -lm 4 -o PDD
+
+## Run gemma bslmm 5x per treatment
+
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/ODD_gemma -bslmm 1 -o ODD_BSLMM_1 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/OCL_gemma -bslmm 1 -o OCL_BSLMM_1 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/PCL_gemma -bslmm 1 -o PCL_BSLMM_1 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/PDD_gemma -bslmm 1 -o PDD_BSLMM_1 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/ODD_gemma -bslmm 1 -o ODD_BSLMM_2 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/OCL_gemma -bslmm 1 -o OCL_BSLMM_2 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/PCL_gemma -bslmm 1 -o PCL_BSLMM_2 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/PDD_gemma -bslmm 1 -o PDD_BSLMM_2 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/ODD_gemma -bslmm 1 -o ODD_BSLMM_3 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/OCL_gemma -bslmm 1 -o OCL_BSLMM_3 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/PCL_gemma -bslmm 1 -o PCL_BSLMM_3 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/PDD_gemma -bslmm 1 -o PDD_BSLMM_3 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/ODD_gemma -bslmm 1 -o ODD_BSLMM_4 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/OCL_gemma -bslmm 1 -o OCL_BSLMM_4 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/PCL_gemma -bslmm 1 -o PCL_BSLMM_4 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/PDD_gemma -bslmm 1 -o PDD_BSLMM_4 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/ODD_gemma -bslmm 1 -o ODD_BSLMM_5 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/OCL_gemma -bslmm 1 -o OCL_BSLMM_5 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/PCL_gemma -bslmm 1 -o PCL_BSLMM_5 -w 500000 -s 5000000
+~/programs/gemma-0.98.4-linux-static-AMD64 -bfile ../vcf/PDD_gemma -bslmm 1 -o PDD_BSLMM_5 -w 500000 -s 5000000
+
+
+
+
