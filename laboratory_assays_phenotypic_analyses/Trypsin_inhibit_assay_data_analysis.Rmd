@@ -1,0 +1,185 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+
+## Trypsin inhibtion assay data analysis 1/2/24
+
+Set up environment
+
+```{r}
+library(tidyverse)
+library(emmeans)
+library(margins)
+theme_set(theme_bw(base_size = 10))
+theme_update(panel.grid.major = element_blank(),
+             panel.grid.minor = element_blank(),
+             legend.position = "none")
+```
+
+### Data prep
+
+Load in the data, remove the preliminary assay dates from the final data set, remove dead individuals, convert weight to mg, and make objects with the two populations split. Finally, do some preparation for plotting.
+
+```{r}
+dat <- read.csv("~/Documents/UMD/Trypsin_Inhibition_Assays/BioassayScoringDataforR_061223_111323.csv")
+
+dat <- dat %>%
+  filter(X.Dead != 1) %>%
+  mutate(EndWeightmg = IndividualLarvaWeight * 1000)
+
+labeller_1 <- c("CL" = "Control Leaf Tissue", "DD" = "Cry1Ab Expressing Leaf Tissue", "Benzon" = "Lab Susceptible", "Field" = "Field Resistant")
+```
+
+### Basic stats
+Calculate summary stats for each treatment. 
+
+```{r}
+summary_stats <- dat %>%
+  group_by(PlantTissue, Inhibitor, Population) %>%
+  summarise(n = n(), mean = round(mean(EndWeightmg), 1), stdev = sd(EndWeightmg), sterr = stdev/sqrt(n)) %>%
+  arrange(Population, PlantTissue, Inhibitor)
+
+print(summary_stats)
+```
+
+### Effect of buffer ctl?
+
+Check that the two controls are not significantly different (there is no effect of buffer)
+
+```{r}
+field_dd_tissue <- dat %>% 
+  filter(Population == "Field" & Inhibitor == "TISSUE" & PlantTissue == "DD") %>%
+  pull(EndWeightmg)
+field_dd_cl <- dat %>% 
+  filter(Population == "Field" & Inhibitor == "CL" & PlantTissue == "DD") %>%
+  pull(EndWeightmg)
+t.test(field_dd_tissue, field_dd_cl)
+
+field_cl_tissue <- dat %>% 
+  filter(Population == "Field" & Inhibitor == "TISSUE" & PlantTissue == "CL") %>%
+  pull(EndWeightmg)
+field_cl_cl <- dat %>% 
+  filter(Population == "Field" & Inhibitor == "CL" & PlantTissue == "CL") %>%
+  pull(EndWeightmg)
+t.test(field_cl_tissue, field_cl_cl)
+
+benzon_dd_tissue <- dat %>% 
+  filter(Population == "Benzon" & Inhibitor == "TISSUE" & PlantTissue == "DD") %>%
+  pull(EndWeightmg)
+benzon_dd_cl <- dat %>% 
+  filter(Population == "Benzon" & Inhibitor == "CL" & PlantTissue == "DD") %>%
+  pull(EndWeightmg)
+t.test(benzon_dd_tissue, benzon_dd_cl)
+
+benzon_cl_tissue <- dat %>% 
+  filter(Population == "Benzon" & Inhibitor == "TISSUE" & PlantTissue == "CL") %>%
+  pull(EndWeightmg)
+benzon_cl_cl <- dat %>% 
+  filter(Population == "Benzon" & Inhibitor == "CL" & PlantTissue == "CL") %>%
+  pull(EndWeightmg)
+t.test(benzon_cl_tissue, benzon_cl_cl)
+
+
+```
+No significant differences! Buffer doesn't effect weight. Tissue only control not included in further analyses.
+
+# Plotting 
+
+Make box plots for both populations 
+
+```{r}
+theme_set(theme_bw(base_size=10))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  legend.position = "none")
+
+
+#jpeg("~/Documents/UMD/Trypsin_Inhibition_Assays/Trypinhibit_allphenotypes.jpg",width = 20, height = 12, units = "cm", res = 700)
+
+dat %>%
+  filter(Inhibitor != "TISSUE") %>%
+  ggplot(aes(x = as.factor(Inhibitor), y = as.numeric(EndWeightmg))) +
+  geom_boxplot(notch = TRUE, fill = "grey90") +
+  scale_x_discrete(limits = c("CL", "1X", "2X", "5X", "10X"), labels = c("CTL", "1X", "2X", "5X", "10X")) +
+  facet_wrap(~PlantTissue+Population, switch = "x", labeller = as_labeller(labeller_1)) +
+  theme(strip.background = element_blank(),
+        strip.text = element_blank()) +
+  labs(y = "", x = "") +
+  ylim(0, 300)
+#dev.off()
+
+```
+
+
+Relative growth suppression by TLCK on CL & DD diets comparing Benzon and Field populations
+
+```{r}
+dat1 <- dat %>%
+  filter(Inhibitor != "TISSUE") %>%
+  group_by(PlantTissue, Inhibitor, Population) %>%
+  summarise(mean = round(mean(EndWeightmg), 1))
+
+dat2 <- dat1 %>%
+  group_by(Inhibitor, Population) %>%
+  reframe(ratio = mean[PlantTissue == "DD"]/mean[PlantTissue == "CL"])
+
+```
+
+
+```{r}
+
+theme_set(theme_bw(base_size = 10))
+theme_update(panel.grid.major = element_blank(),
+             panel.grid.minor = element_blank())
+
+#jpeg("~/Documents/UMD/Trypsin_Inhibition_Assays/Trypinhibit_relative_phenotypes.jpg",width = 20, height = 8, units = "cm", res = 700)
+dat2 %>%
+  ggplot(aes(x = as.factor(Inhibitor), y = as.numeric(ratio), linetype = Population)) +
+  geom_line(aes(group = Population)) +
+  scale_x_discrete(limits = c("CL", "1X", "2X", "5X", "10X"), labels = c("CTL", "1X", "2X", "5X", "10X")) +
+  scale_linetype_discrete(limits = c("Field", "Benzon"), labels = c("Resistant", "Susceptible")) +
+  labs(y = "Growth ratio (DD/CL)", x = "TLCK Treatment")
+#dev.off()
+
+```
+
+# Statistical analysis
+
+Fit models and test for significance of the interaction between plant tissue and inhibitor for each population
+
+First Benzon
+
+```{r}
+dat_benzon <- dat %>% 
+  filter(Population == "Benzon" & Inhibitor != "TISSUE")
+
+fit1 <- glm(EndWeightmg ~ PlantTissue + Inhibitor, data = dat_benzon, family = Gamma)
+fit2 <- glm(EndWeightmg ~ PlantTissue * Inhibitor, data = dat_benzon, family = Gamma)
+
+anova(fit1,fit2, test='Chisq')
+
+```
+```{r}
+emm <- emmeans(fit2, ~Inhibitor | PlantTissue)
+contrast(emm, interaction = "pairwise", adjust = "bonferroni")
+```
+
+Then Field
+
+```{r}
+dat_field <- dat %>% 
+  filter(Population == "Field" & Inhibitor != "TISSUE")
+
+
+fit3 <- glm(EndWeightmg ~ PlantTissue + Inhibitor, data = dat_field, family = Gamma)
+fit4 <- glm(EndWeightmg ~ PlantTissue * Inhibitor, data = dat_field, family = Gamma)
+
+anova(fit3,fit4, test='Chisq')
+
+```
+```{r}
+emm <- emmeans(fit4, ~Inhibitor | PlantTissue)
+contrast(emm, interaction = "pairwise", adjust = "bonferroni")
+```

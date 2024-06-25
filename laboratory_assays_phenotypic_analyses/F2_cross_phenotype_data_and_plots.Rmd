@@ -1,0 +1,328 @@
+
+# F2 Data Analysis Notebook
+
+### Notebook setup
+
+```{r global_options, include=FALSE, message=FALSE, warning=FALSE}
+library(knitr)
+library(tidyverse)
+library(janitor)
+library(car)
+theme_set(theme_bw(base_size=12))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  plot.title = element_text(hjust = 0.5),
+  legend.position = "none", 
+  strip.text.x = element_blank(),
+  axis.text.x = element_text(angle = 270, vjust=0.5,))
+```
+
+## Data import
+
+Raw data CSV files are imported. CSV files were exported from each tab of the pre and post experiment excel data sheets. 
+
+
+```{r}
+data.frames <- list.files(path = "~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/Data_sheets/", pattern="BV*")
+
+data.frames
+```
+
+```{r}
+setwd("~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/Data_sheets/")
+
+for (i in 1:length(data.frames)){
+  assign(data.frames[i], select(read.csv(data.frames[i]), c("Tray", "Square", "Row", "Well", "Individual.Larva.Weight", "Population", "Treatment", "Notes")))}
+```
+Merge dataframes, make useful columns, and correct data entry errors after double checking with paper data sheets
+
+```{r}
+merged <- rbind(BV_CV98_P7_BZF_A1.csv, BV_DB104_O6_BZ_03_E6.csv, BV20_AA27_O1BZF_D4.csv, BV20_AA27_O8BZF_A1.csv, BV20_AA27_P6BZM_C3.csv, BV20_AA27_P8BZM_E5.csv, BV20_BP68_O8BZM_C3.csv, BV20_EH138_P1BZF_E5.csv, BV20_EI139_P5BZM_A1.csv, BV20_G7_O4BZF_C3.csv) %>%
+  mutate(population = case_when(
+    grepl('BV-CU98-P7-BZF-A1', Population) ~ "BV_CV98_P7BZF_A1",
+    grepl('BV-CV98-P7 BZF-A1', Population) ~ "BV_CV98_P7BZF_A1",
+    grepl('BV-DB-104-O6-BZF03-E6', Population) ~ "BVDB_104_O6_BZF03_E6",
+    grepl('BV20-AA27-O1BZF-D4', Population) ~"BV20_AA27_O1BZF_D4",
+    grepl('BV20-AA27-O8BZF-A1', Population) ~ "BV20_AA27_O8BZF_A1",
+    grepl('BV20-AA27-P6BZM-C3', Population) ~ "BV20_AA27_P6BZM_C3",
+    grepl('BV20-AA27-P8BZM-E5', Population) ~ "BV20_AA27_P8BZM_E5",
+    grepl('BV20-BP68-08BZM-C3', Population) ~ "BV20_BP68_O8BZM_C3",
+    grepl('BV20-EH138-P1BZF-E5', Population) ~ "BV20_EH138_P1BZF_E5",
+    grepl('BV20-EI139-P5BZM-A1', Population) ~ "BV20_EI139_P5BZM_A1",
+    grepl('BV20-G7-O4BZF-C3', Population) ~ "BV20_G7_04BZF_C3")) %>%
+  filter(Population != "Benzon" & Population != "BENZON" & Population != "") %>%
+  mutate(Treatment = case_when(
+    population == "BVDB_104_O6_BZF03_E6" & Treatment == "CL" ~ "OCL",
+    population == "BVDB_104_O6_BZF03_E6" & Treatment == "DD" ~ "ODD",
+    population == "BV_CV98_P7BZF_A1" & Treatment == "CL" ~ "PCL",
+    population == "BV_CV98_P7BZF_A1" & Treatment == "DD" ~ "PDD",
+    TRUE ~ Treatment)) %>%
+  mutate(treatment = case_when(
+    Treatment == "PDD" ~ "DD",
+    Treatment == "ODD" ~ "DD",
+    Treatment == "PCL" ~ "CL",
+    Treatment == "OCL" ~ "CL",
+    TRUE ~ Treatment)) %>%
+  mutate(diet_strain = case_when(
+    Treatment == "PDD" ~ "P",
+    Treatment == "ODD" ~ "O",
+    Treatment == "PCL" ~ "P",
+    Treatment == "OCL" ~ "O",
+    TRUE ~ Treatment)) %>%
+  filter(Individual.Larva.Weight != "" & Individual.Larva.Weight != "-" & Individual.Larva.Weight != "Empty" & Individual.Larva.Weight != "empty" &
+        Individual.Larva.Weight != "missing" & Individual.Larva.Weight != "lost-escape" & Individual.Larva.Weight != "lost" &
+        Individual.Larva.Weight != "large; dead" & Individual.Larva.Weight != "dead some eating" & Individual.Larva.Weight != "dead no eating" & 
+        Individual.Larva.Weight != "dead lots of eating" & Individual.Larva.Weight != "dead lots eating"  & Individual.Larva.Weight != "dead") %>%
+mutate(end_weight = as.numeric(Individual.Larva.Weight))
+
+merged <-  merged %>%
+  mutate(end_weight = case_when(end_weight == 0.6300 ~ 0.0630, 
+                                            end_weight == 0.6040 ~ 0.0604,
+                                            end_weight == 0.4870 ~ 0.0487,
+                                            TRUE ~ end_weight)) 
+merged_bind <- merged %>% select("population", "treatment", "diet_strain", "end_weight")
+```
+
+
+
+
+```{r}
+data.frames <- list.files(path = "~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/Data_sheets/", pattern="Family_cross_F0*")
+
+data.frames
+
+setwd("~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/Data_sheets/")
+
+for (i in 1:length(data.frames)){
+  assign(data.frames[i], read.csv(data.frames[i]))}
+
+F0_merged <- rbind(Family_cross_F0_grandparent_growth_phenotypes_2019.csv, Family_cross_F0_grandparent_growth_phenotypes_2020.csv) %>%
+  mutate(population = case_when(family =="Benzon" ~ "Susceptible",
+                                TRUE ~ "Resistant")) %>% 
+  select("population", "treatment", "diet_strain", "end_weight")
+```
+```{r}
+all_dat <- rbind(F0_merged, merged_bind)
+
+all_dat$population <- factor(all_dat$population, levels = c("Susceptible", "Resistant", "BV_CV98_P7BZF_A1", "BVDB_104_O6_BZF03_E6", "BV20_AA27_O1BZF_D4", "BV20_AA27_O8BZF_A1", "BV20_AA27_P6BZM_C3", "BV20_AA27_P8BZM_E5", "BV20_BP68_O8BZM_C3", "BV20_EH138_P1BZF_E5", "BV20_EI139_P5BZM_A1", "BV20_G7_04BZF_C3"))
+```
+
+# Calculate number phenotyped for each family
+```{r}
+merged %>%
+  filter(!is.na(end_weight)) %>%
+  group_by(treatment, diet_strain, population) %>%
+  summarize(n= n(), mean = round(mean(as.numeric(end_weight)*1000),1), sd = round(sd(as.numeric(end_weight)*1000),1))
+```
+
+```{r}
+F0_merged %>%
+  filter(!is.na(as.numeric(end_weight))) %>%
+  group_by(population, treatment, diet_strain ) %>%
+  summarize(n= n(), mean = round(mean(as.numeric(end_weight)*1000),1), sd = round(sd(as.numeric(end_weight)*1000),1), Q1 = quantile(as.numeric(end_weight)*1000, probs = 0.25))
+```
+
+
+
+```{r}
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/OCL.jpg",width = 12, height = 2.5, units = "cm", res = 700)
+all_dat %>%
+  filter(treatment == "CL" & diet_strain =="O" & as.numeric(end_weight) != "") %>%
+  ggplot(aes(y = as.numeric(end_weight)*1000, fill = population)) +
+  geom_histogram(stat = "bin", bins = 30, color = "black", size=0.2) +
+  scale_fill_manual(values = c("grey90", "grey40", "grey60", "grey60", "grey60", "grey60", "grey60")) +
+  facet_wrap(~population, ncol = 7) +
+  scale_x_continuous(limits = c(0,65), breaks= c(0, 25, 50)) +
+  scale_y_continuous(limits = c(0,300), breaks= c(0, 100, 200, 300)) +
+  labs(y= "Weight (mg)", x = "Count") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+#dev.off()
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/PDD.jpg",width = 12, height = 2.5, units = "cm", res = 700)
+all_dat %>%
+  filter(treatment == "DD" & diet_strain =="P" & as.numeric(end_weight) != "") %>%
+  ggplot(aes(y = as.numeric(end_weight)*1000, fill = population)) +
+  geom_histogram(stat = "bin", bins = 30, color = "black", size=0.2) +
+  scale_fill_manual(values = c("grey90", "grey40", "grey60", "grey60", "grey60", "grey60", "grey60")) +
+  facet_wrap(~population, ncol = 7) +
+  scale_x_continuous(limits = c(0,65)) +
+  scale_y_continuous(limits = c(0,300), breaks= c(0, 100, 200, 300)) +
+  labs(y= "Weight (mg)", x = "Count") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+#dev.off()
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/PCL.jpg",width = 12, height = 2.5, units = "cm", res = 700)
+all_dat %>%
+  filter(treatment == "CL" & diet_strain =="P" & as.numeric(end_weight) != "") %>%
+  ggplot(aes(y = as.numeric(end_weight)*1000, fill = population)) +
+  geom_histogram(stat = "bin", bins = 30, color = "black", size=0.2) +
+  scale_fill_manual(values = c("grey90", "grey40", "grey60", "grey60", "grey60", "grey60", "grey60")) +
+  facet_wrap(~population, ncol = 7) +
+  scale_x_continuous(limits = c(0,65)) +
+  scale_y_continuous(limits = c(0,300), breaks= c(0, 100, 200, 300)) +
+  labs(y= "Weight (mg)", x = "Count") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+#dev.off()
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/ODD.jpg",width = 12, height = 2.5, units = "cm", res = 700)
+
+all_dat %>%
+  filter(treatment == "DD" & diet_strain =="O") %>%
+  ggplot(aes(y = as.numeric(end_weight)*1000, fill = population)) +
+  geom_histogram(stat = "bin", bins = 30, color = "black", size=0.2) +
+  scale_fill_manual(values = c("grey90", "grey40", "grey60", "grey60", "grey60", "grey60", "grey60")) +
+  facet_wrap(~population, ncol = 7) +
+  scale_x_continuous(limits = c(0,65)) +
+  scale_y_continuous(limits = c(0,300), breaks= c(0, 100, 200, 300)) +
+  labs(y= "Weight (mg)", x = "Count") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+#dev.off()
+
+```
+
+
+```{r}
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/OCL_labs.jpg",width = 12, height = 4, units = "cm", res = 700)
+all_dat %>%
+  filter(treatment == "CL" & diet_strain =="O") %>%
+  ggplot(aes(y = as.numeric(end_weight)*1000, fill = population)) +
+  geom_histogram(stat = "bin", bins = 18, color = "black", size=0.2) +
+  scale_fill_manual(values = c("grey90", "grey40", "grey60", "grey60", "grey60", "grey60", "grey60")) +
+  facet_wrap(~population, ncol = 7) +
+  #scale_x_continuous(limits = c(0,200), breaks= c(0,100,200)) +
+  labs(y= "Weight (mg)", x = "Count") 
+#dev.off()
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/OCL.jpg",width = 12, height = 4, units = "cm", res = 700)
+all_dat %>%
+  filter(diet_strain =="O") %>%
+  ggplot(aes(y = as.numeric(end_weight)*1000, fill = treatment)) +
+  geom_density(alpha = 0.2) +
+  scale_fill_manual(values = c("grey90", "grey40")) +
+  facet_wrap(~population, ncol = 7) +
+ # scale_x_continuous(limits = c(0,200), breaks= c(0,100,200)) +
+  labs(y= "Weight (mg)", x = "Count") 
+#dev.off()
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/PDD.jpg",width = 12, height = 4, units = "cm", res = 700)
+all_dat %>%
+  filter(treatment == "DD" & diet_strain =="P") %>%
+  ggplot(aes(y = as.numeric(end_weight)*1000, fill = population)) +
+  geom_histogram(stat = "bin", bins = 18, color = "black", size=0.2) +
+  scale_fill_manual(values = c("grey90", "grey40", "grey60", "grey60", "grey60", "grey60", "grey60")) +
+  facet_wrap(~population, ncol = 7) +
+  #scale_x_continuous(limits = c(0,200), breaks= c(0,100,200)) +
+  labs(y= "Weight (mg)", x = "Count") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+#dev.off()
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/PCL.jpg",width = 12, height = 4, units = "cm", res = 700)
+all_dat %>%
+  filter(treatment == "CL" & diet_strain =="P") %>%
+  ggplot(aes(y = as.numeric(end_weight)*1000, fill = population)) +
+  geom_histogram(stat = "bin", bins = 18, color = "black", size=0.2) +
+  scale_fill_manual(values = c("grey90", "grey40", "grey60", "grey60", "grey60", "grey60", "grey60")) +
+  facet_wrap(~population, ncol = 7) +
+  #scale_x_continuous(limits = c(0,200), breaks= c(0,100,200)) +
+  labs(y= "Weight (mg)", x = "Count") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+#dev.off()
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/ODD.jpg",width = 12, height = 4, units = "cm", res = 700)
+
+all_dat %>%
+  filter(treatment == "DD" & diet_strain =="O") %>%
+  ggplot(aes(y = as.numeric(end_weight)*1000, fill = population)) +
+  geom_histogram(stat = "bin", bins = 18, color = "black", size=0.2) +
+  scale_fill_manual(values = c("grey90", "grey40", "grey60", "grey60", "grey60", "grey60", "grey60")) +
+  facet_wrap(~population, ncol = 7) +
+  #scale_x_continuous(limits = c(0,200), breaks= c(0,100,200)) +
+  labs(y= "Weight (mg)", x = "Count") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+#dev.off()
+
+```
+
+
+```{r}
+all_dat <- all_dat %>%
+  mutate(end_weight = as.numeric(end_weight)) %>%
+  filter(!is.na(end_weight)) %>%
+  mutate(generation = case_when(population == "Susceptible" ~ "Susceptible",
+                                population == "Resistant" ~ "Resistant",
+                                TRUE ~ "F2")) %>%
+  mutate(full_treatment = paste(diet_strain, treatment, sep = ''))
+all_dat$generation <- factor(all_dat$generation, levels = c("Resistant", "F2", "Susceptible"))
+all_dat$diet_strain <- factor(all_dat$diet_strain, levels = c("P", "O"))
+```
+
+```{r}
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/Phenotype_plots/Treatment_phenotype_compare_means.jpg",width = 12, height = 8, units = "cm", res = 700)
+
+theme_set(theme_bw(base_size=10))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  legend.position = "none")
+
+labeller <- c("O"="Cry1A.105+Cry2Ab2", "P"="Cry1Ab")
+  
+all_dat %>%
+  ggplot(aes(y = end_weight *1000, x = treatment, fill = generation)) +
+           geom_boxplot(notch = TRUE) +
+  scale_fill_manual(values = c("grey40", "grey60", "grey90")) +
+  facet_grid(~ diet_strain, switch = "x", labeller= as_labeller(labeller)) +
+  scale_x_discrete(limits = c("CL","DD"), labels = c("Control", "Toxin")) +
+  theme(panel.spacing.x = grid::unit(0, "mm"),
+        strip.placement = "outside",
+        strip.background = element_blank()) +
+  labs(y = "Weight (mg)", x = "Treatment")
+
+#dev.off()
+```
+
+```{r}
+fit0 <- glm(as.numeric(end_weight) ~ 1, data = all_dat, family = Gamma)
+fit1 <- glm(as.numeric(end_weight) ~ full_treatment, data = all_dat, family = Gamma)
+fit2 <- glm(as.numeric(end_weight) ~ generation, data = all_dat, family = Gamma)
+fit3 <- glm(as.numeric(end_weight) ~ full_treatment + generation, data = all_dat, family = Gamma)
+fit4 <- glm(as.numeric(end_weight) ~ full_treatment * generation, data = all_dat, family = Gamma)
+
+
+anova(fit0,fit1, test='Chisq')
+anova(fit0,fit2, test='Chisq')
+anova(fit1,fit3, test='Chisq')
+anova(fit2,fit3, test='Chisq')
+anova(fit3,fit4, test='Chisq')
+
+anova(fit4, test='Chisq')
+```
+
+
+```{r}
+library(emmeans)
+
+emm <- emmeans(fit4,~full_treatment | generation)
+contrast(emm, interaction = "pairwise", adjust = "bonferroni")
+
+emm <- emmeans(fit4,~generation | full_treatment)
+contrast(emm, interaction = "pairwise", adjust = "bonferroni")
+
+```
