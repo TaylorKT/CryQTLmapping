@@ -1,0 +1,263 @@
+```{r}
+library(tidyverse)
+
+theme_set(theme_bw(base_size=12))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  plot.title = element_text(),
+  axis.text.x = element_blank(),
+  axis.ticks.x = element_blank(),
+  panel.margin = unit(0, "lines"),
+  strip.background = element_blank(),
+  panel.border = element_blank(),
+  legend.position = "none", 
+  strip.text.x = element_text(margin = margin(0,0,0,0, "cm")))
+```
+
+```{r}
+dir <- read.table("~/Documents/UMD/Replicated_cry_crosses/Cross_Parent_Allele_Freq/rad_marker_counts.txt", header = TRUE)
+
+by = join_by("chr"== "CHROM", "ps" == "POS")
+```
+
+
+```{r}
+ODD <- read.table("~/Documents/UMD/Replicated_cry_crosses/gemma/ODD.assoc.txt", header = T) %>% inner_join(dir, by) %>% mutate(CHR = as.numeric(str_replace_all(chr, "Hz_", ""))) %>% filter(af > 0.05) %>%
+  mutate(beta_dir = case_when(allele1 == FIELD ~ beta, allele1 == BENZ ~ beta *(-1))) %>%
+  filter(abs(AC1_diff) > 15 & abs(AC2_diff) > 15) 
+  
+PDD <- read.table("~/Documents/UMD/Replicated_cry_crosses/gemma/PDD.assoc.txt", header = T) %>% inner_join(dir, by) %>% mutate(CHR = as.numeric(str_replace_all(chr, "Hz_", ""))) %>% filter(af > 0.05) %>%
+  mutate(beta_dir = case_when(allele1 == FIELD ~ beta, allele1 == BENZ ~ beta *(-1))) %>%
+  filter(abs(AC1_diff) > 15 & abs(AC2_diff) > 15) 
+
+PCL <- read.table("~/Documents/UMD/Replicated_cry_crosses/gemma/PCL.assoc.txt", header = T) %>% inner_join(dir, by) %>% mutate(CHR = as.numeric(str_replace_all(chr, "Hz_", ""))) %>% filter(af > 0.05) %>%
+  mutate(beta_dir = case_when(allele1 == FIELD ~ beta, allele1 == BENZ ~ beta *(-1))) %>%
+  filter(abs(AC1_diff) > 15 & abs(AC2_diff) > 15) 
+
+OCL <- read.table("~/Documents/UMD/Replicated_cry_crosses/gemma/OCL.assoc.txt", header = T) %>% inner_join(dir, by) %>% mutate(CHR = as.numeric(str_replace_all(chr, "Hz_", ""))) %>% filter(af > 0.05) %>%
+  mutate(beta_dir = case_when(allele1 == FIELD ~ beta, allele1 == BENZ ~ beta *(-1))) %>%
+  filter(abs(AC1_diff) > 15 & abs(AC2_diff) > 15) 
+```
+
+
+
+```{r}
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/gemma/PDD_ACdiff_15.jpg",width = 12, height = 4, units = "cm", res = 700)
+
+PDD %>%
+filter(abs(AC1_diff) > 15 & abs(AC2_diff) > 15) %>%
+ggplot(aes(y = beta_dir, x = as.numeric(ps), color = as.factor(CHR))) +
+  geom_point(cex = 0.2) +
+  scale_color_manual(values = rep(c("grey15", "grey65"), times = 24)) +
+  geom_point(data = PDD %>% 
+               filter(abs(AC1_diff) > 15 & abs(AC2_diff) > 15) %>%
+               mutate(p_lrt_bon = p.adjust(p_lrt, method = "bonferroni"))%>% 
+               filter(p_lrt_bon < 0.01),
+             aes(y = beta_dir, x = as.numeric(ps)), cex = 0.2, color= "red") +
+  labs(x = "Chromosome", y = "Additive effect") +
+  facet_wrap(~CHR, nrow = 1, strip.position="bottom", scales = "free_x") +
+  theme(text=element_text(size=12)) 
+ 
+#dev.off() 
+```
+
+
+
+
+```{r}
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/gemma/ODD_ACdiff_15.jpg",width = 12, height = 4, units = "cm", res = 700)
+
+PDD %>%
+filter(b_count1 == 0 | b_count2 == 0 ) %>%
+ggplot(aes(y = beta_dir, x = as.numeric(ps), color = as.factor(CHR))) +
+  geom_point(cex = 0.2) +
+  scale_color_manual(values = rep(c("grey15", "grey65"), times = 24)) +
+  geom_point(data = PDD %>% 
+               filter(b_count1 == 0 | b_count2 == 0 ) %>%
+               mutate(p_lrt_bon = p.adjust(p_lrt, method = "bonferroni"))%>% 
+               filter(p_lrt_bon < 0.05),
+             aes(y = beta_dir, x = as.numeric(ps)), cex = 0.2, color= "red") +
+  labs(x = "Chromosome", y = "Additive effect") +
+  facet_wrap(~CHR, nrow = 1, strip.position="bottom", scales = "free_x") +
+  theme(text=element_text(size=4)) 
+ 
+#dev.off() 
+```
+
+
+
+```{r}
+windowed_ODD <- ODD %>%
+  filter(b_count1 == 0 | b_count2 == 0 | f_count1 == 0 | f_count2 == 0 ) %>%
+  group_by(CHR) %>%
+  arrange(CHR, ps) %>%
+  mutate(windowed_beta = slider::slide_dbl(beta_dir, ~mean(.x), .before = 15, .after = 15, .step = 10),
+         windowed_sig = slider::slide_dbl(p_lrt, ~min(.x), .before = 15, .after = 15, .step = 10)) 
+
+windowed_PDD <- PDD %>%
+  filter(b_count1 == 0 | b_count2 == 0 | f_count1 == 0 | f_count2 == 0 ) %>%
+  group_by(CHR) %>%
+  arrange(CHR, ps) %>%
+  mutate(windowed_beta = slider::slide_dbl(beta_dir, ~mean(.x), .before = 15, .after = 15, .step = 10),
+         windowed_sig = slider::slide_dbl(p_lrt, ~min(.x), .before = 15, .after = 15, .step = 5)) 
+
+windowed_OCL <- OCL %>%
+ filter(b_count1 == 0 | b_count2 == 0 | f_count1 == 0 | f_count2 == 0 ) %>%
+  group_by(CHR) %>%
+  arrange(CHR, ps) %>%
+  mutate(windowed_beta = slider::slide_dbl(beta_dir, ~mean(.x), .before = 15, .after = 15, .step = 10),
+         windowed_sig = slider::slide_dbl(p_lrt, ~min(.x), .before = 15, .after = 15, .step = 10)) 
+
+windowed_PCL <- PCL %>%
+  filter(b_count1 == 0 | b_count2 == 0 | f_count1 == 0 | f_count2 == 0 ) %>%
+  group_by(CHR) %>%
+  arrange(CHR, ps) %>%
+  mutate(windowed_beta = slider::slide_dbl(beta_dir, ~mean(.x), .before = 15, .after = 15, .step = 10),
+         windowed_sig = slider::slide_dbl(p_lrt, ~min(.x), .before = 15, .after = 15, .step = 10))
+```
+
+```{r}
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/gemma/ODD_ACdiff15_smooth10_step5.jpg",width = 12, height = 4, units = "cm", res = 700)
+
+windowed_ODD  %>%
+ggplot(aes(y = windowed_beta, x = as.numeric(ps), color = as.factor(CHR))) +
+  geom_hline(yintercept = 0, color = "black", cex = 0.1, alpha = 0.5) +
+  geom_hline(yintercept = 10, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = -10, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = 20, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = -20, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_point(cex = 0.2) +
+  scale_color_manual(values = rep(c("grey15", "grey65"), times = 24)) +
+  geom_point(data = 
+windowed_ODD %>% filter(windowed_sig < 0.05/nrow(windowed_ODD)),
+             aes(y = windowed_beta, x = as.numeric(ps)), cex = 0.2, color= "orange") +
+  geom_point(data = 
+windowed_ODD %>% filter(windowed_sig < 0.01/nrow(windowed_ODD)),
+             aes(y = windowed_beta, x = as.numeric(ps)), cex = 0.2, color= "red") +
+  labs(x = "Chromosome", y = "Additive effect") +
+  facet_wrap(~CHR, nrow = 1, strip.position="bottom", scales = "free_x") +
+  theme(text=element_text(size=8)) 
+
+#dev.off()
+```
+
+```{r}
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/gemma/PDD_ACdiff15_smooth10_step5.jpg",width = 12, height = 4, units = "cm", res = 700)
+
+windowed_PDD  %>%
+ggplot(aes(y = windowed_beta, x = as.numeric(ps), color = as.factor(CHR))) +
+  geom_hline(yintercept = 0, color = "black", cex = 0.1, alpha = 0.5) +
+  geom_hline(yintercept = 10, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = -10, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = 20, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = -20, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_point(cex = 0.2) +
+  scale_color_manual(values = rep(c("grey15", "grey65"), times = 24)) +
+  geom_point(data = 
+windowed_PDD %>% filter(windowed_sig < 0.05/nrow(windowed_PDD)),
+             aes(y = windowed_beta, x = as.numeric(ps)), cex = 0.2, color= "orange") +
+  geom_point(data = 
+windowed_PDD %>% filter(windowed_sig < 0.01/nrow(windowed_PDD)),
+             aes(y = windowed_beta, x = as.numeric(ps)), cex = 0.2, color= "red") +
+  labs(x = "Chromosome", y = "Additive effect") +
+  facet_wrap(~CHR, nrow = 1, strip.position="bottom", scales = "free_x") +
+  theme(text=element_text(size=8)) 
+
+#dev.off()
+```
+
+```{r}
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/gemma/PCL_ACdiff15_smooth10_step5.jpg",width = 12, height = 4, units = "cm", res = 700)
+
+windowed_PCL  %>%
+ggplot(aes(y = windowed_beta, x = as.numeric(ps), color = as.factor(CHR))) +
+  geom_hline(yintercept = 0, color = "black", cex = 0.1, alpha = 0.5) +
+  geom_hline(yintercept = 10, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = -10, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = 20, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = -20, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = -30, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = -40, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_point(cex = 0.2) +
+  scale_color_manual(values = rep(c("grey15", "grey65"), times = 24)) +
+  geom_point(data = 
+windowed_PCL %>% filter(windowed_sig < 0.05/nrow(windowed_PCL)),
+             aes(y = windowed_beta, x = as.numeric(ps)), cex = 0.2, color= "orange") +
+  geom_point(data = 
+windowed_PCL %>% filter(windowed_sig < 0.01/nrow(windowed_PCL)),
+             aes(y = windowed_beta, x = as.numeric(ps)), cex = 0.2, color= "red") +
+  labs(x = "Chromosome", y = "Additive effect") +
+  facet_wrap(~CHR, nrow = 1, strip.position="bottom", scales = "free_x") +
+  theme(text=element_text(size=8)) 
+
+#dev.off()
+```
+
+```{r}
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/gemma/OCL_ACdiff15_smooth10_step5.jpg",width = 12, height = 4, units = "cm", res = 700)
+
+windowed_OCL  %>%
+ggplot(aes(y = windowed_beta, x = as.numeric(ps), color = as.factor(CHR))) +
+  geom_hline(yintercept = 0, color = "black", cex = 0.1, alpha = 0.5) +
+  geom_hline(yintercept = 10, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = -10, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = 20, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_hline(yintercept = -20, color = "grey", cex = 0.1, alpha = 0.3) +
+  geom_point(cex = 0.2) +
+  scale_color_manual(values = rep(c("grey15", "grey65"), times = 24)) +
+  geom_point(data = 
+windowed_OCL %>% filter(windowed_sig < 0.05/nrow(windowed_OCL)),
+             aes(y = windowed_beta, x = as.numeric(ps)), cex = 0.2, color= "orange") +
+  geom_point(data = 
+windowed_OCL %>% filter(windowed_sig < 0.01/nrow(windowed_OCL)),
+             aes(y = windowed_beta, x = as.numeric(ps)), cex = 0.2, color= "red") +
+  labs(x = "Chromosome", y = "Additive effect") +
+  facet_wrap(~CHR, nrow = 1, strip.position="bottom", scales = "free_x") +
+  theme(text=element_text(size=8)) 
+
+#dev.off()
+```
+
+
+# Chrom 9 specific plot with all markers
+
+```{r}
+theme_set(theme_bw(base_size=10))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  plot.title = element_text(),
+  panel.margin = unit(0, "lines"),
+  strip.background = element_blank(),
+  panel.border = element_blank(),
+  legend.position = "none", 
+  strip.text.x = element_text(margin = margin(0,0,0,0, "cm")))
+
+PDD <- read.table("~/Documents/UMD/Replicated_cry_crosses/gemma/PDD.assoc.txt", header = T) %>% inner_join(dir, by) %>% mutate(CHR = as.numeric(str_replace_all(chr, "Hz_", ""))) %>% filter(af > 0.05) 
+
+```
+
+
+```{r}
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/gemma/PDD_alldat_Chr9_plot.jpg", width = 12, height = 3, units = "cm", res = 700)
+
+PDD %>%
+  filter(chr == "Hz_09") %>%
+  filter((af > 0.05)) %>%
+  ggplot(aes(y = abs(beta), x = as.numeric(ps/1000000))) +
+  geom_point(cex = 0.3, alpha = 0.5, shape = 20) +
+  scale_color_manual(values = rep(c("grey15", "grey65"), times = 24)) +
+  geom_point(data = PDD %>% filter(chr == "Hz_09") %>% filter(p_lrt < 0.01/nrow(PDD)),
+             aes(y = abs(beta), x = as.numeric(ps/1000000)), cex = 0.3, color= "red", shape = 20) +
+  labs(x = "", y = "PDD effect size (mg)") +
+  theme(text=element_text(size=6)) + 
+  annotate("rect", xmin=5.2, xmax= 5.4, ymin=0, ymax=Inf, alpha=0.2, fill="blue") 
+
+#dev.off()
+```
+
+
+
+
+
+
+

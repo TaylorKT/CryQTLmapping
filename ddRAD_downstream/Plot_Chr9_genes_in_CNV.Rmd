@@ -1,0 +1,35 @@
+
+```{r}
+library(tidyverse)
+library(gggenes)
+library(gridExtra)
+
+theme_set(theme_bw(base_size=10))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  strip.background = element_blank(),
+  legend.position = "none")
+```
+
+```{r}
+genes <- read.csv("~/Documents/UMD/Replicated_cry_crosses/Gene_plots_Chr9/Chr9_5.2to5.4_gene_pos.csv") %>%
+  arrange(Gene)
+subgenes <- read.csv("~/Documents/UMD/Replicated_cry_crosses/Gene_plots_Chr9/Chr9_5.2to5.4_subgene.csv") %>%
+  arrange(Gene)
+```
+
+
+```{r}
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/gemma/annotations_Chr9_plot.jpg", width = 12, height = 9, units = "cm", res = 700)
+ggplot(genes,aes(y = Chromosome, xmin = Start, xmax = End)) +
+  geom_gene_arrow(arrow_body_height = unit(.1, "mm"), arrowhead_height = unit(.1, "mm"),arrowhead_width = unit(0, "mm")) +
+  geom_subgene_arrow(data = subgenes, 
+                     aes(y = Chromosome, xmin = Start, xmax = End, xsubmin = From, xsubmax = To),
+                     arrowhead_height = unit(3, "mm"), 
+                     arrowhead_width = unit(0, "mm"), 
+                     color = "blue", fill = "blue") +
+ geom_text(aes(x = End - ((End-Start)/2), y = 0.87, label = Gene), cex = 4, angle = 90) +
+  labs(y = "", x = "") 
+#dev.off()
+```
+

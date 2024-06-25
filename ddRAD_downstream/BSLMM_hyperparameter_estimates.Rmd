@@ -1,0 +1,112 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r}
+library(tidyverse)
+theme_set(theme_bw(base_size=10))
+
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), 
+  strip.background = element_blank(),
+  legend.position = "none")
+```
+
+# Read in all replicate runs
+
+```{r}
+setwd("/Users/kate/Documents/UMD/Replicated_cry_crosses/gemma/BSLMM")
+files <- list.files(pattern = "*.hyp.txt")
+#file_names <- gsub("[.hyp.txt]", "", files)
+files
+for (i in 1:length(files)) {
+assign(paste(files[i]), read.table(paste("/Users/kate/Documents/UMD/Replicated_cry_crosses/gemma/BSLMM/",files[i], sep = ""), header = TRUE)) 
+}
+```
+
+# Merge replicate runs
+
+```{r}
+PDD <- do.call("rbind",mget(ls(pattern = "^PDD*")))
+ODD <- do.call("rbind",mget(ls(pattern = "^ODD*")))
+PCL <- do.call("rbind",mget(ls(pattern = "^PCL*")))
+OCL <- do.call("rbind",mget(ls(pattern = "^OCL*")))
+
+```
+
+## Calculate mean and 95% CI for each treatment and hyperparameter
+
+```{r}
+colMeans(PDD)
+sapply(PDD, quantile, probs=c(0.025, 0.975))
+```
+
+```{r}
+colMeans(PCL)
+sapply(PCL, quantile, probs=c(0.025, 0.975))
+```
+
+```{r}
+colMeans(ODD)
+sapply(ODD, quantile, probs=c(0.025, 0.975))
+```
+
+```{r}
+colMeans(OCL_BSLMM_1.hyp.txt)
+sapply(OCL_BSLMM_1.hyp.txt, quantile, probs=c(0.025, 0.975))
+```
+
+```{r}
+#jpeg("/Users/kate/Documents/UMD/Replicated_cry_crosses/gemma/BSLMM/PVE.jpg",width = 12, height = 4, units = "cm", res = 700)
+
+OCL %>%
+  ggplot(aes(x = pve)) +
+  geom_density(linetype = "longdash", color = "grey70") +
+  geom_density(data = ODD, aes(x = pve), linetype = "longdash")+
+  geom_density(data = PDD, aes(x = pve))+
+  geom_density(data = PCL, aes(x = pve),color = "grey70") +
+  geom_vline(xintercept = mean(OCL$pve), linetype = "longdash", color = "grey70") +
+  geom_vline(xintercept = mean(ODD$pve),linetype = "longdash") +
+  geom_vline(xintercept = mean(PDD$pve)) +
+  geom_vline(xintercept = mean(PCL$pve), color = "grey70")+
+  labs(y="Density", x = "PVE")
+
+#dev.off()
+```
+
+```{r}
+#jpeg("/Users/kate/Documents/UMD/Replicated_cry_crosses/gemma/BSLMM/PGE.jpg",width = 12, height = 4, units = "cm", res = 700)
+
+OCL %>%
+  ggplot(aes(x = pge)) +
+  geom_density(linetype = "longdash", color = "grey70") +
+  geom_density(data = ODD, aes(x = pge), linetype = "longdash")+
+  geom_density(data = PDD, aes(x = pge))+
+  geom_density(data = PCL, aes(x = pge),color = "grey70") +
+  geom_vline(xintercept = mean(OCL$pge, na.rm = TRUE), linetype = "longdash", color = "grey70") +
+  geom_vline(xintercept = mean(ODD$pge),linetype = "longdash") +
+  geom_vline(xintercept = mean(PDD$pge)) +
+  geom_vline(xintercept = mean(PCL$pge), color = "grey70") +
+  labs(y="Density", x = "PGE")
+
+#dev.off()
+```
+
+```{r}
+#jpeg("/Users/kate/Documents/UMD/Replicated_cry_crosses/gemma/BSLMM/n_gamma.jpg",width = 12, height = 4, units = "cm", res = 700)
+OCL %>%
+  ggplot(aes(x = n_gamma)) +
+  geom_density(linetype = "longdash", color = "grey70") +
+  geom_density(data = ODD, aes(x = n_gamma), linetype = "longdash")+
+  geom_density(data = PDD, aes(x = n_gamma))+
+  geom_density(data = PCL, aes(x = n_gamma),color = "grey70") +
+  geom_vline(xintercept = mean(OCL$n_gamma, na.rm = TRUE), linetype = "longdash", color = "grey70") +
+  geom_vline(xintercept = mean(ODD$n_gamma),linetype = "longdash") +
+  geom_vline(xintercept = mean(PDD$n_gamma)) +
+  geom_vline(xintercept = mean(PCL$n_gamma), color = "grey70") +
+  labs(y="Density", x = "Variants of major effect") 
+
+#dev.off()
+```

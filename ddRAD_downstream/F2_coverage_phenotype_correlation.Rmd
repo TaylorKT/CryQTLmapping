@@ -1,0 +1,117 @@
+
+```{r}
+library(tidyverse)
+theme_set(theme_bw(base_size=10))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  legend.position = "none")
+```
+Read in phenotype data and make new columns with condition and family from individual ID
+
+```{r}
+phenotypes <- read.table("~/Documents/UMD/Replicated_cry_crosses/coverage_phenotype_correlation/phenotypes_for_correlation.txt", header = TRUE) %>%
+  mutate(treatment = case_when(
+    grepl('^1|^3|^5', ID) & grepl('_O', ID) ~ "ODD",
+    grepl('^1|^3|^5', ID) & grepl('_P', ID) ~ "PDD", 
+    grepl('^2|^4|^6', ID) & grepl('_P', ID) ~ "PCL",
+    grepl('^2|^4|^6', ID) & grepl('_O', ID) ~ "OCL",
+    grepl('^1|^3|^5', ID) & grepl('_0', ID) ~ "ODD",
+    grepl('^2|^4|^6', ID) & grepl('_0', ID) ~ "OCL")) %>%
+  mutate(family = case_when(
+    grepl('BV_CV98_P7BZF_A1', ID) ~ "BV_CV98_P7BZF_A1",
+    grepl('BV20_AA27_O1BZF_D4', ID) ~ "BV20_AA27_O1BZF_D4",
+    grepl('BV20_AA27_P6BZM_C3', ID) ~ "BV20_AA27_P6BZM_C3",
+    grepl('BV20_EI139_P5BZM_A1', ID) ~ "BV20_EI139_P5BZM_A1",
+    grepl('BVDB_104_O6_BZF03_E6', ID) ~ "BVDB_104_O6_BZF03_E6",
+    grepl('BV20_AA27_08BZF_A1', ID) ~ "BV20_AA27_O8BZF_A1",
+    grepl('BV20_AA27_P8BZM_E5', ID) ~ "BV20_AA27_P8BZM_E5",
+    grepl('BV20_G7_04BZF_C3', ID) ~ "BV20_G7_04BZF_C3",
+    grepl('BV20_BP68_08BZM_C3', ID) ~ "BV20_BP68_O8BZM_C3",
+    grepl('BV20_EH138_P1BZF_E5', ID) ~ "BV20_EH138_P1BZF_E5")) %>%
+  mutate(hi_low = case_when(
+    family == "BV_CV98_P7BZF_A1" &  treatment == "PDD" & Weight < 75 ~ "L",
+    treatment == "PDD" & Weight < 50 & family != "BV_CV98_P7BZF_A1"~ "L",
+    treatment == "PDD" & Weight > 50 ~ "H",
+    treatment == "ODD" & Weight < 20 ~ "L",
+    treatment == "ODD" & Weight > 20 ~ "H",
+    treatment == "OCL" & Weight < 100 ~ "L",
+    treatment == "OCL" & Weight > 100 ~ "H",
+    family == "BV_CV98_P7BZF_A1" &  treatment == "PCL" & Weight < 150 ~ "L",
+    treatment == "PCL" & Weight < 130 & family != "BV_CV98_P7BZF_A1" ~ "L",
+    treatment == "PCL" & Weight > 130 ~ "H")) %>%
+  mutate(diet_strain = case_when(
+    treatment == "PDD" ~ "P",
+    treatment == "ODD" ~ "O",
+    treatment == "PCL" ~ "P",
+    treatment == "OCL" ~ "O",
+    TRUE ~ treatment)) %>%
+  mutate(Treatment = case_when(
+    treatment == "PDD" ~ "DD",
+    treatment == "ODD" ~ "DD",
+    treatment == "PCL" ~ "CL",
+    treatment == "OCL" ~ "CL",
+    TRUE ~ treatment))
+```
+
+
+```{r}
+trypsin_cluster_coverage <- read.csv("~/Documents/UMD/Replicated_cry_crosses/coverage_phenotype_correlation/F2_Coverage_Stats_Trypsin_Cluster.csv", header = TRUE)
+```
+
+#Merge phenotype and coverage data
+
+```{r}
+cov_merged <- merge(trypsin_cluster_coverage, phenotypes, by.x = "Sample_name", by.y = "ID") %>%
+  mutate(norm_cov = Coverage_mean_tryp/Coverage_mean_WG)
+
+```
+
+```{r}
+anti_join(trypsin_cluster_coverage, phenotypes, by = c("Sample_name" = "ID"))%>%
+  mutate(norm_cov = Coverage_mean_tryp/Coverage_mean_WG) %>%
+  select(Sample_name, norm_cov)
+```
+
+
+```{r}
+theme_set(theme_bw(base_size=10))
+theme_update(panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  legend.position = "none")
+
+cov_merged$hi_low <- factor(cov_merged$hi_low, levels = c("L", "H"))
+
+cov_merged$diet_strain <- factor(cov_merged$diet_strain, levels = c("P", "O"))
+
+labeller <- c("O"="Cry1A.105+Cry2Ab2", "P"="Cry1Ab")
+
+#jpeg("~/Documents/UMD/Replicated_cry_crosses/coverage_phenotype_correlation/norm_cov_boxplot_condition_2.jpg",width = 12, height = 12, units = "cm", res = 700)
+
+cov_merged %>%
+ggplot(aes(y = norm_cov , x = Treatment, fill = hi_low)) +
+  geom_boxplot(notch = TRUE) +
+  scale_fill_manual(breaks = c("L", "H"), values = c( "grey90", "grey40")) +
+  facet_grid(~ diet_strain, switch = "x", labeller= as_labeller(labeller)) +
+  theme(panel.spacing.x = grid::unit(0, "mm"),
+        strip.placement = "outside",
+        strip.background = element_blank()) +
+  labs(y = "Relative Coverage", x = "Treatment")
+  
+#dev.off()
+```
+
+
+
+```{r}
+PDD <- cov_merged %>% filter(treatment == "PDD")
+ODD <- cov_merged %>% filter(treatment == "ODD")
+PCL <- cov_merged %>% filter(treatment == "PCL")
+OCL <- cov_merged %>% filter(treatment == "OCL")
+
+0.05/4
+
+t.test(norm_cov~hi_low, data = PDD)
+t.test(norm_cov~hi_low, data = ODD)
+t.test(norm_cov~hi_low, data = PCL)
+t.test(norm_cov~hi_low, data = OCL)
+```
